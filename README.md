@@ -41,138 +41,113 @@ Now you are all set to start querying the data and writing your data quality che
 ![image](https://github.com/PeteNdiforchu/SQL_LinkedInLive/assets/157251680/19ed6611-9b28-44bb-a191-18a15d21cc81)
 
 
-# SQL Queries - Data Quality Checks
+# SQL Queries - Aggregations
 
 ```sql
-1. **Check for Missing Values in Customer Table:**
-SELECT *
-FROM customer
-WHERE first_name IS NULL OR last_name IS NULL;
+-- 1. Calculate the total amount paid for each category:
 
-----
+SELECT c.name as category_name,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.category c
+JOIN dvd_rentals.film_category fc ON c.category_id = fc.category_id
+JOIN dvd_rentals.film f ON fc.film_id = f.film_id
+JOIN dvd_rentals.inventory i ON f.film_id = i.film_id
+JOIN dvd_rentals.rental r ON i.inventory_id = r.inventory_id
+JOIN dvd_rentals.payment p ON r.rental_id = p.rental_id
+GROUP BY c.name;
 
-2. **Identify Duplicate Films in Film Table:**
-SELECT title, COUNT(*)
-FROM film
-GROUP BY title
-HAVING COUNT(*) > 1;
+-- 2. Calculate the total amount paid for each category, and include a column indicating whether the total amount is above 5000:
 
-----
-3. **Validate Rental Dates in Rental Table:**
-SELECT *
-FROM rental
-WHERE rental_date > return_date;
+SELECT c.name as category_name,
+       SUM(p.amount) AS total_amount_paid,
+       CASE WHEN SUM(p.amount) > 5000 THEN 'Above 5000' ELSE 'Below or Equal to 5000' END AS amount_status
+FROM dvd_rentals.category c
+JOIN dvd_rentals.film_category fc ON c.category_id = fc.category_id
+JOIN dvd_rentals.film f ON fc.film_id = f.film_id
+JOIN dvd_rentals.inventory i ON f.film_id = i.film_id
+JOIN dvd_rentals.rental r ON i.inventory_id = r.inventory_id
+JOIN dvd_rentals.payment p ON r.rental_id = p.rental_id
+GROUP BY c.name;
 
----
-4. **Ensure Consistent Category Names in Film Category Table::**
-SELECT DISTINCT name
-FROM category
-WHERE name NOT IN (
-    SELECT DISTINCT name
-    FROM film_category
-    INNER JOIN category ON film_category.category_id = category.category_id
-);
+-- 3. Calculate the total amount paid for each category, only including categories with a total amount paid greater than 1000:
 
-----
-5. **Check for Inconsistent Customer Addresses in Customer Table:**
-SELECT address_id, COUNT(*)
-FROM customer
-GROUP BY address_id
-HAVING COUNT(*) > 1;
+SELECT c.name as category_name,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.category c
+JOIN dvd_rentals.film_category fc ON c.category_id = fc.category_id
+JOIN dvd_rentals.film f ON fc.film_id = f.film_id
+JOIN dvd_rentals.inventory i ON f.film_id = i.film_id
+JOIN dvd_rentals.rental r ON i.inventory_id = r.inventory_id
+JOIN dvd_rentals.payment p ON r.rental_id = p.rental_id
+GROUP BY c.name
+HAVING SUM(p.amount) > 1000;
 
-----
-6. **Identify Films with No Inventory in Inventory Table:**
-SELECT film_id
-FROM film
-WHERE film_id NOT IN (
-    SELECT DISTINCT film_id
-    FROM inventory
-);
+-- 4. Calculate the average amount paid for each category:
 
-----
-7. **Validate Payment Amounts in Payment Table:**
-SELECT *
-FROM payment
-WHERE amount <= 0;
+SELECT c.name as category_name,
+       AVG(p.amount) AS average_amount_paid
+FROM dvd_rentals.category c
+JOIN dvd_rentals.film_category fc ON c.category_id = fc.category_id
+JOIN dvd_rentals.film f ON fc.film_id = f.film_id
+JOIN dvd_rentals.inventory i ON f.film_id = i.film_id
+JOIN dvd_rentals.rental r ON i.inventory_id = r.inventory_id
+JOIN dvd_rentals.payment p ON r.rental_id = p.rental_id
+GROUP BY c.name;
 
-----
-8. **Check for Missing Staff Records in Staff Table:**
-SELECT *
-FROM staff
-WHERE staff_id NOT IN (SELECT DISTINCT staff_id FROM rental);
+-- 5. Calculate the total amount paid for each customer:
 
-----
-9. **Ensure Proper Address Formatting in Address Table:**
-SELECT *
-FROM address
-WHERE LENGTH(city) < 3
+SELECT CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.customer c
+JOIN dvd_rentals.payment p ON c.customer_id = p.customer_id
+GROUP BY CONCAT(c.first_name, ' ', c.last_name);
 
-----
-10. **Identify Customers with Incomplete Address Information:**
-SELECT customer_id, 
-    CASE 
-        WHEN address_id IS NULL THEN 'Missing Address'
-        WHEN city IS NULL OR LENGTH(city) < 3 THEN 'Incomplete City'
-        WHEN country_id IS NULL THEN 'Missing Country'
-        ELSE 'Complete Address'
-    END AS address_status
-FROM customer;
+-- 6. Calculate the total amount paid for each customer, only including customers with more than 5 transactions:
 
-----
-11. **Categorize Films by Length:**
-SELECT title, 
-    CASE 
-        WHEN length < 60 THEN 'Short'
-        WHEN length >= 60 AND length < 120 THEN 'Medium'
-        ELSE 'Long'
-    END AS length_category
-FROM film;
+SELECT CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+       COUNT(*) AS transaction_count,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.customer c
+JOIN dvd_rentals.payment p ON c.customer_id = p.customer_id
+GROUP BY CONCAT(c.first_name, ' ', c.last_name)
+HAVING COUNT(*) > 5;
 
-----
-12. **Classify Payments by Amount Ranges:**
-SELECT payment_id, amount,
-    CASE 
-        WHEN amount < 10 THEN 'Low'
-        WHEN amount >= 10 AND amount < 50 THEN 'Medium'
-        ELSE 'High'
-    END AS payment_category
-FROM payment;
+-- 7. Calculate the total amount paid for each customer, including the percentage of the total amount they represent:
 
-----
-13. **Identify Popular Film Genres:**
-SELECT fc.category_id, c.name AS category_name,
-    COUNT(*) AS film_count,
-    CASE 
-        WHEN COUNT(*) >= 100 THEN 'Popular'
-        WHEN COUNT(*) >= 50 AND COUNT(*) < 100 THEN 'Moderately Popular'
-        ELSE 'Less Popular'
-    END AS popularity_status
-FROM film_category fc
-JOIN category c ON fc.category_id = c.category_id
-GROUP BY fc.category_id, c.name;
+SELECT CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+       SUM(p.amount) AS total_amount_paid,
+       (SUM(p.amount) / (SELECT SUM(amount) FROM dvd_rentals.payment)) * 100 AS percentage_of_total
+FROM dvd_rentals.customer c
+JOIN dvd_rentals.payment p ON c.customer_id = p.customer_id
+GROUP BY CONCAT(c.first_name, ' ', c.last_name);
 
-----
-14. **Detect Customers with High Rental Frequency:**
-SELECT customer_id,
-    CASE 
-        WHEN COUNT(*) >= 50 THEN 'High Frequency'
-        WHEN COUNT(*) >= 20 AND COUNT(*) < 50 THEN 'Moderate Frequency'
-        ELSE 'Low Frequency'
-    END AS rental_frequency
-FROM rental
-GROUP BY customer_id;
+-- 8. Calculate the total amount paid for each month, year-wise:
 
-----
-15. **Categorize Films by Rating:**
-SELECT film_id, title, rating,
-    CASE 
-        WHEN rating = 'G' THEN 'General Audience'
-        WHEN rating = 'PG' THEN 'Parental Guidance'
-        WHEN rating = 'PG-13' THEN 'Parental Guidance 13+'
-        WHEN rating = 'R' THEN 'Restricted'
-        ELSE 'Not Rated'
-    END AS rating_category
-FROM film;
+SELECT EXTRACT(YEAR FROM p.payment_date) AS year,
+       EXTRACT(MONTH FROM p.payment_date) AS month,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.payment p
+GROUP BY EXTRACT(YEAR FROM p.payment_date), EXTRACT(MONTH FROM p.payment_date);
 
+-- 9. Calculate the total amount paid for each year, including the percentage change from the previous year:
+
+-- SELECT EXTRACT(YEAR FROM p.payment_date) AS year,
+--       SUM(p.amount) AS total_amount_paid,
+--       (SUM(p.amount) - LAG(SUM(p.amount), 1, 0) OVER (ORDER BY EXTRACT(YEAR FROM p.payment_date))) / LAG(SUM(p.amount), 1, 0) OVER (ORDER BY EXTRACT(YEAR FROM p.payment_date)) * 100 AS percentage_change
+-- FROM dvd_rentals.payment p
+-- GROUP BY EXTRACT(YEAR FROM p.payment_date);
+
+-- 10. Calculate the total amount paid for each category, but only including payments that occurred after a specific date:
+
+SELECT c.name as category_name,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.category c
+JOIN dvd_rentals.film_category fc ON c.category_id = fc.category_id
+JOIN dvd_rentals.film f ON fc.film_id = f.film_id
+JOIN dvd_rentals.inventory i ON f.film_id = i.film_id
+JOIN dvd_rentals.rental r ON i.inventory_id = r.inventory_id
+JOIN dvd_rentals.payment p ON r.rental_id = p.rental_id
+WHERE p.payment_date > '2005-01-01'
+GROUP BY c.name;
 
 
