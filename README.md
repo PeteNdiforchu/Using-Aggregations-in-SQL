@@ -151,3 +151,16 @@ WHERE p.payment_date > '2005-01-01'
 GROUP BY c.name;
 
 
+BONUS:
+
+-- 11. 
+
+SELECT CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+       COUNT(*) AS total_rentals,
+       SUM(p.amount) AS total_amount_paid
+FROM dvd_rentals.customer c
+JOIN dvd_rentals.payment p ON c.customer_id = p.customer_id
+WHERE EXTRACT(YEAR FROM p.payment_date) = 2005
+GROUP BY CONCAT(c.first_name, ' ', c.last_name)
+HAVING COUNT(*) >= 5
+ORDER BY total_amount_paid DESC;
